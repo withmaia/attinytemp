@@ -1,9 +1,7 @@
 <form name='register'>
-    <strong>Enter your Maia login to register this device</strong>
-    <p><em>Remember to connect to your regular wifi first!</em></p>
-    <p><small>TODO: Check network connection with Javascript</small></p>
-    <input id='email' name='email' type='email' placeholder='email' />
-    <input id='password' name='password' type='password' placeholder='password' />
+    <p class='help'>Enter the registration token you got from the Maia dashboard.</p>
+    <p class='todo'>TODO: Check network connection with Javascript</p>
+    <input id='token' name='token' placeholder='Token' />
     <button>Register</button>
 </form>
 <p class='status'>Loading...</p>
@@ -33,13 +31,9 @@
                 + "<p class='note'>Remember to switch back to your home wifi network!</p>";
         }
 
-        else if (registration.status == 'registering') {
-            status_text.textContent = 'Registering...';
-        }
-        
         else {
             document.forms['register'].style.display = 'block';
-            $('#email').focus();
+            $('#token').focus();
             status_text.textContent = '';
         }
     }
@@ -50,13 +44,11 @@
     document.forms['register'].onsubmit = function() {
         $('form[name=register] button').textContent = 'Registering...';
         $('form[name=register] button').disabled = true;
-        status_text.textContent = 'Registering...';
 
         fetch('/register.json', {
             method: 'post',
             body: JSON.stringify({
-                email: $('#email').value,
-                password: $('#password').value
+                token: $('#token').value
             })
         });
 
