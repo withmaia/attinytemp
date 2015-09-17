@@ -2,10 +2,12 @@ fs = require 'fs'
 polar = require 'polar'
 
 # Wrapping html with header & footer
-header_html = fs.readFileSync 'html/header.html'
-footer_html = fs.readFileSync 'html/footer.html'
 templated = (html) ->
+    header_html = fs.readFileSync 'html/header.html'
+    footer_html = fs.readFileSync 'html/footer.html'
     header_html + html + footer_html
+
+slowly = (fn) -> setTimeout fn, Math.random()*1000+100
 
 app = polar port: 10080
 
@@ -14,13 +16,17 @@ connection_status = 'unconfigured'
 registration_status = 'unregistered'
 
 app.get '/connection.json', (req, res) ->
-    res.json {status: connection_status}
+    slowly -> res.json {status: connection_status}
 
 app.get '/registration.json', (req, res) ->
-    res.json {status: registration_status}
+    slowly ->
+        if registration_status == 'registered'
+            res.json status: registration_status, email: 'test@gmail.com'
+        else
+            res.json status: registration_status
 
 app.get '/scan.json', (req, res) ->
-    res.json [{ssid: '<SSID Hidden>'}]
+    slowly -> res.json [{ssid: '<SSID Hidden>'}]
 
 app.post '/connect.json', (req, res) ->
     {ssid, pass} = req.body
