@@ -1,7 +1,5 @@
-#define F_CPU 1000000UL
 #if !defined(F_CPU)
-    #warning "F_CPU not defined in makefile - now defined in softuart.h"
-    #define F_CPU 3686400UL
+    #error "F_CPU not defined in makefile"
 #endif
 
 #define SOFTUART_BAUD_RATE      2400

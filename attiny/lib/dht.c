@@ -7,8 +7,6 @@ Released under GPLv3.
 Please refer to LICENSE file for licensing information.
 */
 
-#define F_CPU 1000000UL
-
 #include <stdio.h>
 #include <string.h>
 #include <avr/io.h>
