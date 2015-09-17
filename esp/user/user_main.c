@@ -15,17 +15,26 @@
 #endif
 
 // Raw HTML files
-unsigned char header_html[] = {
-    #include "header_html.h"
+static unsigned char header_html[] = {
+    #include "header.html.h"
 };
-unsigned char footer_html[] = {
-    #include "footer_html.h"
+static unsigned char base_css[] = {
+    #include "base.css.h"
 };
-unsigned char index_html[] = {
-    #include "index_html.h"
+static unsigned char footer_html[] = {
+    #include "footer.html.h"
 };
-unsigned char register_html[] = {
-    #include "register_html.h"
+static unsigned char index_html[] = {
+    #include "index.html.h"
+};
+static unsigned char connect_js[] = {
+    #include "connect.js.h"
+};
+static unsigned char register_html[] = {
+    #include "register.html.h"
+};
+static unsigned char register_js[] = {
+    #include "register.js.h"
 };
 
 #define API_BASE "http://api.withmaia.io"
@@ -407,7 +416,16 @@ void ICACHE_FLASH_ATTR server_recv_cb(void *arg, char *http_raw, unsigned short 
     int POST = (os_strcmp(method, "POST") == 0);
 
     if (GET) { // No body if not [post/put/patch]ing
-        if (os_strcmp(path, "/connection.json") == 0) {
+
+        // Static files
+
+        if (os_strcmp(path, "/base.css") == 0) { send_ok(pespconn, base_css); }
+        else if (os_strcmp(path, "/connect.js") == 0) { send_ok(pespconn, connect_js); }
+        else if (os_strcmp(path, "/register.js") == 0) { send_ok(pespconn, register_js); }
+
+        // JSON responses
+
+        else if (os_strcmp(path, "/connection.json") == 0) {
             int station_connect_status = wifi_station_get_connect_status();
 
             if (station_connect_status == STATION_GOT_IP) {
@@ -451,6 +469,8 @@ void ICACHE_FLASH_ATTR server_recv_cb(void *arg, char *http_raw, unsigned short 
             os_sprintf(json_str, "{\"status\": \"%s\"}", status_str);
             send_json(pespconn, json_str);
         }
+
+        // HTML pages
 
         else if (os_strcmp(path, "/read") == 0) {
             if (registration_status == REGISTER_REGISTERED) {

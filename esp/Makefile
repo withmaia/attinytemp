@@ -127,14 +127,20 @@ $(APP_AR): $(OBJ)
 	$(Q) $(AR) cru $@ $^
 
 compile_html:
-	xxd -i < html/header.html > include/header_html.h
-	echo ', 0' >> include/header_html.h
-	xxd -i < html/footer.html > include/footer_html.h
-	echo ', 0' >> include/footer_html.h
-	xxd -i < html/index.html > include/index_html.h
-	echo ', 0' >> include/index_html.h
-	xxd -i < html/register.html > include/register_html.h
-	echo ', 0' >> include/register_html.h
+	xxd -i < html/header.html > include/header.html.h
+	echo ', 0' >> include/header.html.h
+	xxd -i < html/base.css > include/base.css.h
+	echo ', 0' >> include/base.css.h
+	xxd -i < html/footer.html > include/footer.html.h
+	echo ', 0' >> include/footer.html.h
+	xxd -i < html/index.html > include/index.html.h
+	echo ', 0' >> include/index.html.h
+	xxd -i < html/connect.js > include/connect.js.h
+	echo ', 0' >> include/connect.js.h
+	xxd -i < html/register.html > include/register.html.h
+	echo ', 0' >> include/register.html.h
+	xxd -i < html/register.js > include/register.js.h
+	echo ', 0' >> include/register.js.h
 
 checkdirs: $(BUILD_DIR) $(FW_BASE)
 
