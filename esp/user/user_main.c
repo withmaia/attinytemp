@@ -37,12 +37,23 @@ static void user_procTask(os_event_t *events);
 
 static volatile os_timer_t check_timer;
 
-#define REGISTER_BLANK 0
+#define CONNECTION_UNCONFIGURED 0
+#define CONNECTION_CONNECTING 1
+#define CONNECTION_CONNECTED 2
+#define CONNECTION_FAILED 3
+int connection_status = CONNECTION_UNCONFIGURED;
+
+#define REGISTER_UNREGISTERED 0
 #define REGISTER_REGISTERING 1
 #define REGISTER_REGISTERED 2
 #define REGISTER_FAILED 3
-//int registration_status = REGISTER_BLANK;
-int registration_status = REGISTER_REGISTERED;
+int registration_status = REGISTER_UNREGISTERED;
+//int registration_status = REGISTER_REGISTERED;
+
+#define MODE_IDLE 0
+#define MODE_AP 2
+#define MODE_STATION 2
+int mode = MODE_IDLE;
 
 // Helpers
 // -------------------------------------------------------------------------
@@ -52,128 +63,16 @@ void print(char *s) {
     ets_uart_printf("\r\n");
 }
 
-// Timers
 // -------------------------------------------------------------------------
-
-void check_timerfunc(void *arg) {
-    struct ip_info ipConfig;
-    wifi_get_ip_info(STATION_IF, &ipConfig);
-    if (ipConfig.ip.addr != 0) {
-        //ets_uart_printf("[check_timerfunc] Connected? ");
-        ets_uart_printf("%d.%d.%d.%d\r\n", IP2STR(&ipConfig.ip));
-    } else {
-        //print("[check_timerfunc] No IP");
-    }
-}
-
-//Do nothing function
-static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events) {
-    os_delay_us(10);
-}
-
-// Access point IP setup
-// -------------------------------------------------------------------------
-
-void ICACHE_FLASH_ATTR setup_ap_ip() {
-    struct ip_info ipinfo;
-    wifi_softap_dhcps_stop();
-    //wifi_get_ip_info(SOFTAP_IF, &ipinfo);
-    IP4_ADDR(&ipinfo.ip, 10, 10, 10, 1); // Self IP
-    IP4_ADDR(&ipinfo.gw, 10, 10, 10, 1); // Gateway IP (also self)
-    IP4_ADDR(&ipinfo.netmask, 255, 255, 255, 0); // Netmask (class C /24)
-    //IP4_ADDR(&dhcp_lease.start_ip, 10, 10, 10, 10);
-    //IP4_ADDR(&dhcp_lease.end_ip, 10, 10, 10, 100);
-    //wifi_softap_set_dhcps_lease(&dhcp_lease);
-    wifi_set_ip_info(SOFTAP_IF, &ipinfo);
-    wifi_softap_dhcps_start();
-    //print("Set IP info");
-}
 
 // Access point network setup
-// -------------------------------------------------------------------------
 
 static char macaddr[6];
 
 void ICACHE_FLASH_ATTR setup_stationmode() {
-    // Set STATION+AP mode
+    // Set STATION mode
     wifi_set_opmode(STATION_MODE);
-}
-
-void ICACHE_FLASH_ATTR setup_ap() {
-    // Set STATION+AP mode
-    wifi_set_opmode(STATIONAP_MODE);
-
-    // Store MAC address
-    wifi_get_macaddr(SOFTAP_IF, macaddr);
-    char macstr[255];
-    os_sprintf(macstr, MACSTR, MAC2STR(macaddr));
-    //ets_uart_printf("Got mac addr %s\r\n", macstr);
-
-    // Set AP info
-    char ssid[32] = "Maia Setup 0x1";
-    char password[64] = "heyamaia";
-
-    // Create config struct
-    struct softap_config apConfig;
-    wifi_softap_get_config(&apConfig);
-
-    // Set SSID in struct
-    os_memset(apConfig.ssid, 0, sizeof(apConfig.ssid));
-    os_memcpy(apConfig.ssid, ssid, os_strlen(ssid));
-
-    // Set Password in struct
-    os_memset(apConfig.password, 0, sizeof(apConfig.password));
-    os_memcpy(apConfig.password, password, os_strlen(password));
-
-    // Set AP options
-    apConfig.authmode = AUTH_WPA_WPA2_PSK;
-    apConfig.channel = 7;
-    apConfig.ssid_hidden = 0;
-    apConfig.ssid_len = 0;
-    apConfig.max_connection = 255;
-
-    // Use config struct
-    wifi_softap_set_config(&apConfig);
-    //print("Set AP info");
-
-    char info[1024];
-    os_sprintf(info,"OPMODE: %u, SSID: %s, PASSWORD: %s, CHANNEL: %d, AUTHMODE: %d, MACADDRESS: %s\r\n",
-            wifi_get_opmode(),
-            apConfig.ssid,
-            apConfig.password,
-            apConfig.channel,
-            apConfig.authmode,
-            macstr);
-    //ets_uart_printf(info);
-}
-
-int station_configured = 0;
-
-void ICACHE_FLASH_ATTR setup_station(char ssid[], char password[]) {
-    // Stop previous connection
-    wifi_station_disconnect();
-    wifi_station_dhcpc_stop();
-
-    // Create config struct
-    struct station_config staConfig;
-    wifi_station_get_config(&staConfig);
-
-    // Set SSID in struct
-    os_memset(staConfig.ssid, 0, sizeof(staConfig.ssid));
-    os_memcpy(staConfig.ssid, ssid, os_strlen(ssid));
-
-    // Set Password in struct
-    os_memset(staConfig.password, 0, sizeof(staConfig.password));
-    os_memcpy(staConfig.password, password, os_strlen(password));
-
-    // Use config struct
-    wifi_station_set_config(&staConfig);
-    //print("Set Station info");
-    wifi_station_connect();
-    wifi_station_dhcpc_start();
-    wifi_station_set_auto_connect(1);
-
-    station_configured = 1;
+    mode = MODE_STATION;
 }
 
 int n_scanned = 0;
@@ -199,7 +98,104 @@ void ICACHE_FLASH_ATTR wifi_scan_done(void *arg, STATUS status)
         si++;
     }
     n_scanned = si;
-    //ets_uart_printf("My name is %s", DEVICE_ID);
+    //ets_uart_printf("My name is 0x%x", DEVICE_ID);
+}
+
+// Access point IP setup
+void ICACHE_FLASH_ATTR setup_ap_ip() {
+    struct ip_info ipinfo;
+    wifi_softap_dhcps_stop();
+    //wifi_get_ip_info(SOFTAP_IF, &ipinfo);
+    IP4_ADDR(&ipinfo.ip, 10, 10, 10, 1); // Self IP
+    IP4_ADDR(&ipinfo.gw, 10, 10, 10, 1); // Gateway IP (also self)
+    IP4_ADDR(&ipinfo.netmask, 255, 255, 255, 0); // Netmask (class C /24)
+    //IP4_ADDR(&dhcp_lease.start_ip, 10, 10, 10, 10);
+    //IP4_ADDR(&dhcp_lease.end_ip, 10, 10, 10, 100);
+    //wifi_softap_set_dhcps_lease(&dhcp_lease);
+    wifi_set_ip_info(SOFTAP_IF, &ipinfo);
+    wifi_softap_dhcps_start();
+    //print("Set IP info");
+}
+
+void ICACHE_FLASH_ATTR setup_ap() {
+    setup_ap_ip();
+
+    // Set STATION+AP mode
+    wifi_set_opmode(STATIONAP_MODE);
+
+    // Store MAC address
+    wifi_get_macaddr(SOFTAP_IF, macaddr);
+    char macstr[255];
+    os_sprintf(macstr, MACSTR, MAC2STR(macaddr));
+    //ets_uart_printf("Got mac addr %s\r\n", macstr);
+
+    // Set AP info
+    char ssid[32];
+    os_sprintf(ssid, "Maia Setup 0x%x", DEVICE_ID);
+    char password[64] = "heyamaia";
+
+    // Create config struct
+    struct softap_config apConfig;
+    wifi_softap_get_config(&apConfig);
+
+    // Set SSID in struct
+    os_memset(apConfig.ssid, 0, sizeof(apConfig.ssid));
+    os_memcpy(apConfig.ssid, ssid, os_strlen(ssid));
+
+    // Set Password in struct
+    os_memset(apConfig.password, 0, sizeof(apConfig.password));
+    os_memcpy(apConfig.password, password, os_strlen(password));
+
+    // Set AP options
+    apConfig.authmode = AUTH_WPA_WPA2_PSK;
+    apConfig.channel = 7;
+    apConfig.ssid_hidden = 0;
+    apConfig.ssid_len = 0;
+    apConfig.max_connection = 255;
+
+    // Use config struct
+    wifi_softap_set_config(&apConfig);
+    //print("Set AP info");
+
+    /* char info[1024]; */
+    /* os_sprintf(info,"OPMODE: %u, SSID: %s, PASSWORD: %s, CHANNEL: %d, AUTHMODE: %d, MACADDRESS: %s\r\n", */
+    /*         wifi_get_opmode(), */
+    /*         apConfig.ssid, */
+    /*         apConfig.password, */
+    /*         apConfig.channel, */
+    /*         apConfig.authmode, */
+    /*         macstr); */
+    //ets_uart_printf(info);
+
+    wifi_station_scan(NULL, wifi_scan_done);
+    mode = MODE_AP;
+}
+
+void ICACHE_FLASH_ATTR setup_station(char ssid[], char password[]) {
+    // Stop previous connection
+    wifi_station_disconnect();
+    wifi_station_dhcpc_stop();
+
+    // Create config struct
+    struct station_config staConfig;
+    wifi_station_get_config(&staConfig);
+
+    // Set SSID in struct
+    os_memset(staConfig.ssid, 0, sizeof(staConfig.ssid));
+    os_memcpy(staConfig.ssid, ssid, os_strlen(ssid));
+
+    // Set Password in struct
+    os_memset(staConfig.password, 0, sizeof(staConfig.password));
+    os_memcpy(staConfig.password, password, os_strlen(password));
+
+    // Use config struct
+    wifi_station_set_config(&staConfig);
+    //print("Set Station info");
+    wifi_station_connect();
+    wifi_station_dhcpc_start();
+    wifi_station_set_auto_connect(1);
+
+    connection_status = CONNECTION_CONNECTING;
 }
 
 // UART
@@ -274,7 +270,7 @@ void ICACHE_FLASH_ATTR post_json(char *path, char *content) {
 
 void measurement_json(char *json_str, char *kind, char *unit, char *value) {
     os_sprintf(json_str, "{"
-        "\"device_id\": \"%s\","
+        "\"device_id\": \"0x%x\","
         "\"kind\": \"%s\","
         "\"unit\": \"%s\","
         "\"value\": \"%s\""
@@ -298,7 +294,7 @@ void token_string(char *into, char *json, jsmntok_t t) {
     char tv[100];
     os_strncpy(tv, json+t.start, t.end-t.start);
     tv[t.end-t.start] = 0;
-    print(tv);
+    //print(tv);
     strcpy(into, tv);
 }
 
@@ -399,7 +395,7 @@ void parse_http(char *http_raw, unsigned short length, char *method, char *path,
 
 void ICACHE_FLASH_ATTR server_recv_cb(void *arg, char *http_raw, unsigned short length) {
     struct espconn *pespconn = (struct espconn *)arg;
-    print("[server_recv_cb] Received data:");
+    //print("[server_recv_cb] Received data:");
 
     char method[10];
     char path[60];
@@ -412,9 +408,9 @@ void ICACHE_FLASH_ATTR server_recv_cb(void *arg, char *http_raw, unsigned short 
 
     if (GET) { // No body if not [post/put/patch]ing
         if (os_strcmp(path, "/connection.json") == 0) {
-            int connection_status = wifi_station_get_connect_status();
+            int station_connect_status = wifi_station_get_connect_status();
 
-            if (connection_status == STATION_GOT_IP) {
+            if (station_connect_status == STATION_GOT_IP) {
                 struct ip_info ipConfig;
                 wifi_get_ip_info(STATION_IF, &ipConfig);
                 char json_str[54];
@@ -425,9 +421,9 @@ void ICACHE_FLASH_ATTR server_recv_cb(void *arg, char *http_raw, unsigned short 
             else {
                 char *status_str;
 
-                if (!station_configured) status_str = "idle";
+                if (connection_status == CONNECTION_UNCONFIGURED) status_str = "unconfigured";
                 else
-                switch (connection_status) {
+                switch (station_connect_status) {
                     case STATION_CONNECTING: status_str = "connecting"; break;
                     case STATION_WRONG_PASSWORD: status_str = "failed"; break;
                     case STATION_NO_AP_FOUND: status_str = "failed"; break;
@@ -445,7 +441,7 @@ void ICACHE_FLASH_ATTR server_recv_cb(void *arg, char *http_raw, unsigned short 
             char *status_str;
 
             switch (registration_status) {
-                case REGISTER_BLANK: status_str = "blank"; break;
+                case REGISTER_UNREGISTERED: status_str = "unregistered"; break;
                 case REGISTER_REGISTERING: status_str = "registering"; break;
                 case REGISTER_REGISTERED: status_str = "registered"; break;
                 case REGISTER_FAILED: status_str = "failed"; break;
@@ -515,7 +511,7 @@ void ICACHE_FLASH_ATTR server_recv_cb(void *arg, char *http_raw, unsigned short 
         jsmnerr_t r;
         r = jsmn_parse(&parser, body, 1024, tokens, 256);
         if (r < 0) {
-            print("JSON Parse error?");
+            //print("JSON Parse error?");
             return;
         }
 
@@ -523,7 +519,7 @@ void ICACHE_FLASH_ATTR server_recv_cb(void *arg, char *http_raw, unsigned short 
         char station_ssid[20];
         char station_pass[20];
 
-        print("JSON Parse success?");
+        //print("JSON Parse success?");
 
         if (os_strcmp(path, "/connect.json") == 0) {
             // Parse ssid and pass from JSON
@@ -536,13 +532,13 @@ void ICACHE_FLASH_ATTR server_recv_cb(void *arg, char *http_raw, unsigned short 
                 char tv[256];
                 token_string(tv, body, tokens[ti]);
                 if (on_ssid) {
-                    print("Found ssid");
+                    //print("Found ssid");
                     on_ssid = 0;
                     os_strcpy(station_ssid, tv);
                     has_ssid = 1;
                 }
                 if (on_pass) {
-                    print("Found pass");
+                    //print("Found pass");
                     on_pass = 0;
                     os_strcpy(station_pass, tv);
                     has_pass = 1;
@@ -552,7 +548,7 @@ void ICACHE_FLASH_ATTR server_recv_cb(void *arg, char *http_raw, unsigned short 
                 on_pass = ti % 2 == 1 && os_strcmp(tv, "pass") == 0;
             }
 
-            ets_uart_printf("Hopefully ssid=%s and pass=%s\r\n", station_ssid, station_pass);
+            //ets_uart_printf("Hopefully ssid=%s and pass=%s\r\n", station_ssid, station_pass);
             send_ok(pespconn, "<h1>maia</h1><p>OK</p>");
             setup_station(station_ssid, station_pass);
         }
@@ -570,13 +566,13 @@ void ICACHE_FLASH_ATTR server_recv_cb(void *arg, char *http_raw, unsigned short 
                 char tv[256];
                 token_string(tv, body, tokens[ti]);
                 if (on_email) {
-                    print("Found email");
+                    //print("Found email");
                     on_email = 0;
                     os_strcpy(user_email, tv);
                     has_email = 1;
                 }
                 if (on_password) {
-                    print("Found password");
+                    //print("Found password");
                     on_password = 0;
                     os_strcpy(user_password, tv);
                     has_password = 1;
@@ -587,11 +583,11 @@ void ICACHE_FLASH_ATTR server_recv_cb(void *arg, char *http_raw, unsigned short 
             }
 
             char register_response[256];
-            os_sprintf(register_response, "Registering as \"%s\"...", DEVICE_ID);
+            os_sprintf(register_response, "Registering as %d...", DEVICE_ID);
             send_ok_templated(pespconn, register_response);
             char register_json[256];
             os_sprintf(register_json, "{"
-                "\"device_id\": \"%s\","
+                "\"device_id\": \"0x%x\","
                 "\"kind\": \"%s\","
                 "\"email\": \"%s\","
                 "\"password\": \"%s\""
@@ -623,7 +619,7 @@ void ICACHE_FLASH_ATTR tcpserver_connectcb(void *arg) {
     struct espconn *pespconn = (struct espconn *)arg;
     espconn_regist_recvcb(pespconn, server_recv_cb);
     espconn_regist_disconcb(pespconn, server_discon_cb);
-    ets_uart_printf("Server ready\r\n");
+    //ets_uart_printf("Server ready\r\n");
 }
 
 void ICACHE_FLASH_ATTR setup_server() {
@@ -636,32 +632,71 @@ void ICACHE_FLASH_ATTR setup_server() {
     espconn_regist_time(&server, server_timeover, 0);
 }
 
+void ICACHE_FLASH_ATTR stop_server() {
+    espconn_disconnect(&server);
+}
+
 // Main init
 // =========================================================================
 
-void ICACHE_FLASH_ATTR init_done() {
-    /* wifi_station_scan(NULL, wifi_scan_done); */
+// Status check function
+void check_timerfunc(void *arg) {
+    struct ip_info ipConfig;
+    wifi_get_ip_info(STATION_IF, &ipConfig);
+    if (ipConfig.ip.addr != 0) {
+        connection_status = CONNECTION_CONNECTED;
+        //ets_uart_printf("[check_timerfunc] Connected? ");
+        ets_uart_printf("C %d.%d.%d.%d\r\n", IP2STR(&ipConfig.ip));
+        //ets_uart_printf("C");
+
+        if (mode == MODE_AP) {
+            // Just Station and no AP
+            setup_stationmode();
+            // Turn off HTTP server
+            stop_server();
+        }
+
+    } else if (connection_status == CONNECTION_CONNECTING) {
+        ets_uart_printf("X");
+        //print("[check_timerfunc] No IP");
+    } else {
+        ets_uart_printf("U");
+        if (mode != MODE_AP) {
+            // Setup AP and Server
+            setup_ap();
+            setup_server();
+        }
+    }
 }
+
+//Do nothing function
+static void ICACHE_FLASH_ATTR user_procTask(os_event_t *events) {
+    os_delay_us(10);
+}
+
+void ICACHE_FLASH_ATTR init_done() {
+    setup_server();
+}
+
+#define DEBUG 1 
 
 void ICACHE_FLASH_ATTR user_init() {
     // Initialize
     gpio_init();
     uart_init(2400, 2400);
     os_delay_us(10000);
-    print("\r\n:)\r\n");
+    //print("\r\n:)\r\n");
 
-    //wifi_station_disconnect();
-    //wifi_station_dhcpc_stop();
+    if (0 && DEBUG) {
+        wifi_station_disconnect();
+        wifi_station_dhcpc_stop();
+    }
 
-    // Set up AP IP info and AP itself
-    //setup_ap_ip();
-    //setup_ap();
-    setup_stationmode();
-
-    // Set up HTTP server
     //setup_server();
 
     // -------------------------------------------------------------------------
+
+    ets_uart_printf("S");
 
     //Set GPIO2 to output mode
     PIN_FUNC_SELECT(PERIPHS_IO_MUX_GPIO2_U, FUNC_GPIO2);
