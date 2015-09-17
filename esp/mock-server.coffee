@@ -16,12 +16,18 @@ connection_status = 'unconfigured'
 registration_status = 'unregistered'
 
 app.get '/connection.json', (req, res) ->
-    slowly -> res.json {status: connection_status}
+    slowly ->
+        if connection_status == 'failed'
+            res.json {status: connection_status, error: "Wifi connection was refused"}
+        else
+            res.json {status: connection_status}
 
 app.get '/registration.json', (req, res) ->
     slowly ->
         if registration_status == 'registered'
             res.json status: registration_status, email: 'test@gmail.com'
+        else if registration_status == 'failed'
+            res.json status: registration_status, error: 'Token was incorrect'
         else
             res.json status: registration_status
 
@@ -32,6 +38,7 @@ app.post '/connect.json', (req, res) ->
     {ssid, pass} = req.body
     connection_status = 'connecting'
     updateConnection = ->
+        #connection_status = 'failed'
         connection_status = 'connected'
     setTimeout updateConnection, 3500
     res.end 'ok'
@@ -40,6 +47,7 @@ app.post '/register.json', (req, res) ->
     {username, password} = req.body
     registration_status = 'registering'
     updateRegistration = ->
+        #registration_status = 'failed'
         registration_status = 'registered'
     setTimeout updateRegistration, 3500
     res.end 'ok'

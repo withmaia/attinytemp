@@ -31,7 +31,19 @@
 
         else if (connection.status == 'connecting') {
         }
-        
+
+        else if (connection.status == 'failed') {
+            document.forms['connect'].style.display = 'block';
+            $('form[name=connect] button').textContent = 'Try again';
+            $('form[name=connect] button').disabled = false;
+            if (connection.error) {
+                status_text.innerHTML = '<strong>Failed to connect</strong>: ' + connection.error
+            } else {
+                status_text.innerHTML = '<strong>Failed to connect</strong>'
+            }
+            status_text.className = 'status error'
+        }
+
         else {
             document.forms['connect'].style.display = 'block';
             loadScan();
@@ -59,6 +71,8 @@
     document.forms['connect'].onsubmit = function() {
         $('form[name=connect] button').textContent = 'Connecting...';
         $('form[name=connect] button').disabled = true;
+        status_text.textContent = '';
+        status_text.className = 'status';
 
         fetch('/connect.json', {
             method: 'post',
