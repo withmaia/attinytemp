@@ -59,52 +59,73 @@ void show_temp(char *temp_text) {
 // Turn on softuart, send, and turn back off again (to avoid interfering with DHT timing)
 // -----------------------------------------------------------------------------
 
-void temp_softuart_puts(char *s) {
-
-    // Turn on ESP and wait for it to hopefully connect
-    PORTB |= (1 << ESP_PIN);
-
-    // Turn on UART
+void setup_softuart() {
     softuart_init();
-    softuart_turn_rx_off();
-    sei(); 
-
-    delay_s(10);
-
-    //_delay_ms(100);
-    softuart_puts(s); // Send reading to ESP
-    _delay_ms(100);
-
-    // Turn off UART
-    cli();
-
-    // Give ESP some time to send and then turn off
-    delay_s(15);
-    PORTB &= ~(1 << ESP_PIN);
+    sei();
 }
+
+char do_read_dht = 0;
 
 int main(void) {
 
     DDRB = (1 << ESP_PIN) | (1 << DHT_PIN); // ESP and DHT enable pins
-    PORTB = 0; // Turn off everything
-    PORTB |= (1 << DHT_PIN); // Turn on DHT
-    //PORTB |= (1 << ESP_PIN); // Turn on ESP
+    PORTB |= (1 << ESP_PIN); // Turn on ESP
 
-    // Intro to clear buffer
-    temp_softuart_puts("\rATTINYTEMP STARTING\r");
+    // Setup UART and write intro
+    setup_softuart();
+    softuart_puts("\rATTINYTEMP STARTING\r");
 
-    delay_s(10); // Give everything 20s to start up
+    // Set up timer for DHT read
+    TCCR1 = (1 << CTC1); // Clear timer on compare match 1C
+    TCCR1 |= (1 << CS13) | (1 << CS11) | (1 << CS10); // Clock divide by 1024
+    OCR1C = 244; // Compare match 1C value, same as above
+    TIMSK |= (1 << OCIE1A); // Enable timer 0 compare match
 
-    while (1) {
-        // Read from DHT
-        char temp_text[50];
-        show_temp(&temp_text);
+    // Store incoming lines for parsing
+    char read_line[32];
+    char ci = 0;
 
-        temp_softuart_puts(&temp_text);
-
-        delay_s(60*10); // Pause until next reading (10 min)
+    for (;;) {
+        // Handle incoming UART
+        while (softuart_kbhit()) {
+            char c = softuart_getchar();
+            if (c == 'U') {
+                softuart_puts("red\r\n");
+            } else if (c == 'A') {
+                softuart_puts("yellow\r\n");
+            } else if (c == 'C') {
+                softuart_puts("green\r\n");
+            }
+        }
+        // Read DHT if triggered
+        if (do_read_dht) read_dht();
+        else _delay_ms(10);
     }
-
-    return 0;
 }
 
+void read_dht() {
+
+    PORTB |= (1 << DHT_PIN);
+    delay_s(1);
+
+    // Read from DHT
+    char temp_text[50];
+    show_temp(&temp_text);
+
+    softuart_puts(&temp_text);
+
+    do_read_dht = 0;
+}
+
+// "Post scale" of clock, multiplied by number of seconds between each toggle
+// = 8mhz / 1024 (prescale) / 244 (timer compare) * [Ns]
+#define POSTSCALE1 32 * 10
+int ti1 = 0; // Clock counter to reach postscale value
+
+// Compare match 1 routine
+ISR(TIM1_COMPA_vect) {
+    if (++ti1 == POSTSCALE1) {
+        do_read_dht = 1; // Set DHT read trigger
+        ti1 = 0;
+    }
+}
