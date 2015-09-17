@@ -29,7 +29,8 @@
             clearInterval(check_registration_interval);
             document.forms['register'].style.display = 'none';
             status_text.innerHTML =
-                '<p><strong>Registered!</strong></p>'
+                "<p class='help'>Your device is now registered to " + registration.email + "</p>"
+                + "<p class='note'>Remember to switch back to your home wifi network!</p>";
         }
 
         else if (registration.status == 'registering') {
