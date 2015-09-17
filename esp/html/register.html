@@ -1,0 +1,66 @@
+<form name='register'>
+    <strong>Enter your Maia login to register this device</strong>
+    <p><em>Remember to connect to your regular wifi first!</em></p>
+    <p><small>TODO: Check network connection with Javascript</small></p>
+    <input id='email' name='email' type='email' placeholder='email' />
+    <input id='password' name='password' type='password' placeholder='password' />
+    <button>Register</button>
+</form>
+<p class='status'>Loading...</p>
+
+<script>
+    function $(s) { return document.querySelector(s); };
+    var status_text = $('.status');
+    document.forms['register'].style.display = 'none';
+
+    // Check registration status
+    var check_registration_interval = null;
+
+    function checkRegistration() {
+        var fetch_registration = fetch('/registration.json').then(function(resp) {
+            return resp.json();
+        });
+        fetch_registration.then(handleRegistration);
+    };
+
+    // Interpret and react to registration status
+    function handleRegistration(registration) {
+        if (registration.status == 'registered') {
+            clearInterval(check_registration_interval);
+            document.forms['register'].style.display = 'none';
+            status_text.innerHTML =
+                '<p><strong>Registered!</strong></p>'
+        }
+
+        else if (registration.status == 'registering') {
+            status_text.textContent = 'Registering...';
+        }
+        
+        else {
+            document.forms['register'].style.display = 'block';
+            $('#email').focus();
+            status_text.textContent = '';
+        }
+    }
+
+    checkRegistration(); // Start by checking registration
+
+    // Submit registration form -> post registration, start checking registration status
+    document.forms['register'].onsubmit = function() {
+        $('form[name=register] button').textContent = 'Registering...';
+        $('form[name=register] button').disabled = true;
+        status_text.textContent = 'Registering...';
+
+        fetch('/register.json', {
+            method: 'post',
+            body: JSON.stringify({
+                email: $('#email').value,
+                password: $('#password').value
+            })
+        });
+
+        check_registration_interval = setInterval(checkRegistration, 2500);
+        return false;
+    };
+</script>
+

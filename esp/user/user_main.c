@@ -10,7 +10,23 @@
 #include "httpclient.h"
 #include "jsmn.h"
 
-#define RAW(...) #__VA_ARGS__
+#if DEVICE_ID < 1
+    #error "No device ID"
+#endif
+
+// Raw HTML files
+unsigned char header_html[] = {
+    #include "header_html.h"
+};
+unsigned char footer_html[] = {
+    #include "footer_html.h"
+};
+unsigned char index_html[] = {
+    #include "index_html.h"
+};
+unsigned char register_html[] = {
+    #include "register_html.h"
+};
 
 #define API_BASE "http://api.withmaia.io"
 
@@ -313,24 +329,9 @@ void ICACHE_FLASH_ATTR send_json(struct espconn *conn, char *response) {
 
 void ICACHE_FLASH_ATTR send_ok_templated(struct espconn *conn, char *response) {
     send_resp(conn, "HTTP/1.1 200 OK\r\n\r\n");
-    send_resp(conn,
-        "<html><head>"
-        "<title>Maia</title>"
-        "<style>"
-            "* { box-sizing: border-box; }\n"
-            "body { display: flex; align-items: center; justify-content: center;"
-                "background: #f2f2f2; text-align: center;"
-                "font: 18px/22px \"Helvetica Neue\", Helvetica, sans-serif; }\n"
-            "#main { }\n"
-            "h1, h2, h3 { font-weight: 300; }\n"
-            "input { padding: 8px 12px; border: none; outline: none; background: #eaeaea; }\n"
-        "</style>"
-        "</head><body>"
-        "<div id='main'>"
-        "<h1>Maia</h1>"
-    );
+    send_resp(conn, header_html);
     send_resp(conn, response);
-    send_resp(conn, "</div></body></html>\r\n");
+    send_resp(conn, footer_html);
     espconn_disconnect(conn);
 }
 
@@ -473,75 +474,7 @@ void ICACHE_FLASH_ATTR server_recv_cb(void *arg, char *http_raw, unsigned short 
         }
 
         else if (os_strcmp(path, "/register") == 0) {
-            send_ok_templated(pespconn, RAW(
-
-                <form name='register'>
-                    <strong>Enter your Maia login to register this device</strong>
-                    <p><em>Remember to connect to your regular wifi first!</em></p>
-                    <p><small>TODO: Check network connection with Javascript</small></p>
-                    <input id='email' name='email' type='email' placeholder='email' />
-                    <input id='password' name='password' type='password' placeholder='password' />
-                    <button>Register</button>
-                </form>
-                <p class='status'>Loading...</p>
-
-                <script>
-                    function $(s) { return document.querySelector(s); };
-                    var status_text = $('.status');
-                    document.forms['register'].style.display = 'none';
-
-                    // Check registration status
-                    var check_registration_interval = null;
-
-                    function checkRegistration() {
-                        var fetch_registration = fetch('/registration.json').then(function(resp) {
-                            return resp.json();
-                        });
-                        fetch_registration.then(handleRegistration);
-                    };
-
-                    // Interpret and react to registration status
-                    function handleRegistration(registration) {
-                        if (registration.status == 'registered') {
-                            clearInterval(check_registration_interval);
-                            document.forms['register'].style.display = 'none';
-                            status_text.innerHTML =
-                                '<p><strong>Registered!</strong></p>'
-                        }
-
-                        else if (registration.status == 'registering') {
-                            status_text.textContent = 'Registering...';
-                        }
-                        
-                        else {
-                            document.forms['register'].style.display = 'block';
-                            $('#email').focus();
-                            status_text.textContent = '';
-                        }
-                    }
-
-                    checkRegistration(); // Start by checking registration
-
-                    // Submit registration form -> post registration, start checking registration status
-                    document.forms['register'].onsubmit = function() {
-                        $('form[name=register] button').textContent = 'Registering...';
-                        $('form[name=register] button').disabled = true;
-                        status_text.textContent = 'Registering...';
-
-                        fetch('/register.json', {
-                            method: 'post',
-                            body: JSON.stringify({
-                                email: $('#email').value,
-                                password: $('#password').value
-                            })
-                        });
-
-                        check_registration_interval = setInterval(checkRegistration, 2500);
-                        return false;
-                    };
-                </script>
-                )
-            );
+            send_ok_templated(pespconn, register_html);
         }
 
         else if (os_strcmp(path, "/scan.json") == 0) {
@@ -563,86 +496,7 @@ void ICACHE_FLASH_ATTR server_recv_cb(void *arg, char *http_raw, unsigned short 
         }
 
         else if (os_strcmp(path, "/") == 0) {
-            send_ok_templated(pespconn, RAW(
-
-                <form name='connect'>
-                    <p>Let me connect to your wifi network:</p>
-                    <select id='ssid' name='ssid'>
-                        <option>Select your SSID</option>
-                    </select>
-                    <input id='pass' name='pass' type='password' placeholder='pass' />
-                    <button>Connect</button>
-                </form>
-                <p class='status'>Loading...</p>
-
-                <script>
-                    function $(s) { return document.querySelector(s); };
-                    var status_text = $('.status');
-                    document.forms['connect'].style.display = 'none';
-
-                    // Check connection status
-                    var check_connection_interval = null;
-
-                    function checkConnection() {
-                        var fetch_connection = fetch('/connection.json').then(function(resp) {
-                            return resp.json();
-                        });
-                        fetch_connection.then(handleConnection);
-                    };
-
-                    // Interpret and react to connection status
-                    function handleConnection(connection) {
-                        if (connection.status == 'connected') {
-                            window.location = '/register';
-                        }
-
-                        else if (connection.status == 'connecting') {
-                            status_text.textContent = 'Connecting...';
-                        }
-                        
-                        else {
-                            document.forms['connect'].style.display = 'block';
-                            loadScan();
-                            $('#ssid').focus();
-                            status_text.textContent = '';
-                        }
-                    }
-
-                    // Load available Wifi networks from scan
-                    function loadScan() {
-                        fetch('/scan.json').then(function (r) { return r.json() }).then(function (stations) {
-                            stations.sort(function(a, b) { return (a.rssi > b.rssi) ? -1 : 1; });
-                            stations.map(function (station) {
-                                var option = document.createElement('option');
-                                option.value = station.ssid;
-                                option.textContent = station.ssid;
-                                $('#ssid').appendChild(option);
-                            });
-                        });
-                    }
-
-                    checkConnection(); // Start by checking connection
-
-                    // Submit connect form -> post connection info, start checking connection status
-                    document.forms['connect'].onsubmit = function() {
-                        $('form[name=connect] button').textContent = 'Connecting...';
-                        $('form[name=connect] button').disabled = true;
-                        status_text.textContent = 'Connecting...';
-
-                        fetch('/connect.json', {
-                            method: 'post',
-                            body: JSON.stringify({
-                                ssid: $('#ssid').value,
-                                pass: $('#pass').value
-                            })
-                        });
-
-                        check_connection_interval = setInterval(checkConnection, 2500);
-                        return false;
-                    };
-                </script>
-                )
-            );
+            send_ok_templated(pespconn, index_html);
         }
 
         else {

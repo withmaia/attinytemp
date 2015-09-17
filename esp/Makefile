@@ -28,9 +28,9 @@ SDK_BASE	?= /Volumes/esp-sdk/esp-open-sdk/esp_iot_sdk_v1.2.0
 # esptool.py path and port
 ESPTOOL		?= esptool.py
 ESPPORT		?= /dev/tty.usbserial-141
-ESPBAUD		?= 130400
+ESPBAUD		?= 230400
 ESPREAD     = /Users/sean/Projects/esp8266/espread.coffee
-DEVICE_ID   ?= 0x0
+DEVICE_ID ?= 0
 DEVICE_KIND ?= attinytemp
 
 # name for the target project
@@ -44,7 +44,7 @@ EXTRA_INCDIR    = include
 LIBS		= c gcc hal pp phy net80211 lwip wpa main
 
 # compiler flags using during compilation of source files
-CFLAGS		= -Os -g -O2 -Wpointer-arith -Wundef -Werror -Wl,-EL -fno-inline-functions -nostdlib -mlongcalls -mtext-section-literals  -D__ets__ -DICACHE_FLASH -DDEVICE_ID=\"$(DEVICE_ID)\" -DDEVICE_KIND=\"$(DEVICE_KIND)\"
+CFLAGS		= -Os -g -O2 -Wpointer-arith -Wundef -Werror -Wl,-EL -fno-inline-functions -nostdlib -mlongcalls -mtext-section-literals  -D__ets__ -DICACHE_FLASH -DDEVICE_ID=$(DEVICE_ID) -DDEVICE_KIND=\"$(DEVICE_KIND)\"
 
 # linker flags used to generate the main object file
 LDFLAGS		= -nostdlib -Wl,--no-check-sections -u call_user_start -Wl,-static
@@ -112,7 +112,7 @@ endef
 
 .PHONY: all checkdirs flash clean
 
-all: checkdirs $(TARGET_OUT) $(FW_FILE_1) $(FW_FILE_2)
+all: compile_html checkdirs $(TARGET_OUT) $(FW_FILE_1) $(FW_FILE_2)
 
 $(FW_BASE)/%.bin: $(TARGET_OUT) | $(FW_BASE)
 	$(vecho) "FW $(FW_BASE)/"
@@ -125,6 +125,16 @@ $(TARGET_OUT): $(APP_AR)
 $(APP_AR): $(OBJ)
 	$(vecho) "AR $@"
 	$(Q) $(AR) cru $@ $^
+
+compile_html:
+	xxd -i < html/header.html > include/header_html.h
+	echo ', 0' >> include/header_html.h
+	xxd -i < html/footer.html > include/footer_html.h
+	echo ', 0' >> include/footer_html.h
+	xxd -i < html/index.html > include/index_html.h
+	echo ', 0' >> include/index_html.h
+	xxd -i < html/register.html > include/register_html.h
+	echo ', 0' >> include/register_html.h
 
 checkdirs: $(BUILD_DIR) $(FW_BASE)
 
