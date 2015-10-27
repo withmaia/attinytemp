@@ -4,7 +4,7 @@ w = 18 + 2*wall;
 h = 11;
 epsilon = 0.001;
 
-$fn=16;
+$fn = 16;
 
 module round_cube(l, w, h, r=2) {
     hull() {
@@ -105,7 +105,7 @@ translate([0, 0, h]) {
         cube([notch_w, w-2*notch_in, notch_head_h]);
 
         translate([l-w*2/3-w/3/2, w/3/2, h*2-0.5])
-        linear_extrude(height=1+epsilon) resize([w*2/3, w*2/3]) import("/Users/sean/Desktop/lohgo.dxf");
+        linear_extrude(height=1+epsilon) resize([w*2/3, w*2/3]) import("maia-logo.dxf");
 
     }
 }
