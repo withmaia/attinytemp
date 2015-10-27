@@ -58,13 +58,18 @@ notch_in = wall/2;
 module notch() {
     linear_extrude(height=notch_w) {
         // Neck
+        // 3 2
+        // 0
+        //   1
         polygon([
             [0, 0], [notch_t,-1], [notch_t,notch_neck_h], [0, notch_neck_h]
         ], [
             [0, 1, 2, 3]
         ]);
-        translate([0, notch_neck_h, 0])
         // Head
+        // 3 2
+        // 0   1
+        translate([0, notch_neck_h, 0])
         polygon([
             [0, 0], [notch_t+notch_in,0], [notch_t+notch_in/3,notch_head_h], [0, notch_head_h]
         ], [
