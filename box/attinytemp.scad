@@ -48,68 +48,78 @@ difference() {
     }
 }
 
-notch_w = 3;
-notch_neck_h = 1;
-notch_head_h = 1;
-notch_t = 0.7;
-notch_in = wall/2;
+// Tabs & Notches
+// -----------------------------------------------------------------------------
 
-// Notches
-module notch() {
-    linear_extrude(height=notch_w) {
+tab_w = 3;
+notch_w = tab_w*1.25;
+tab_neck_h = 1;
+tab_head_h = 1;
+notch_h = tab_head_h;
+tab_t = 0.7;
+tab_in = wall/2;
+notch_in = wall - 0.7;
+
+// Tabs
+module tab() {
+    linear_extrude(height=tab_w) {
         // Neck
         // 3 2
         // 0
         //   1
         polygon([
-            [0, 0], [notch_t,-1], [notch_t,notch_neck_h], [0, notch_neck_h]
+            [0, 0], [tab_t,-1], [tab_t,tab_neck_h], [0, tab_neck_h]
         ], [
             [0, 1, 2, 3]
         ]);
         // Head
-        // 3 2
-        // 0   1
-        translate([0, notch_neck_h, 0])
+        // 4 3
+        //     2
+        // 0 1
+        translate([0, tab_neck_h, 0])
         polygon([
-            [0, 0], [notch_t+notch_in,0], [notch_t+notch_in/3,notch_head_h], [0, notch_head_h]
+            [0, 0], [tab_t, 0], [tab_t+tab_in,tab_head_h/2], [tab_t,tab_head_h], [0, tab_head_h]
         ], [
-            [0, 1, 2, 3]
+            [0, 1, 2, 3, 4]
         ]);
     }
 }
 
 for(x=[l/4, l*3/4]) {
-    translate([x+notch_w/2, wall+notch_t, h])
+    translate([x+tab_w/2, wall+tab_t, h])
     rotate([90, 00, 270])
-    notch();
+    tab();
 
-    translate([x-notch_w/2, w-wall-notch_t, h])
+    translate([x-tab_w/2, w-wall-tab_t, h])
     rotate([90, 00, 90])
-    notch();
+    tab();
 }
 
 // Top
 translate([0, 0, h]) {
-    // Main shell
     difference() {
         intersection() {
+
+            // Outer shell
             difference() {
                 round_cube(l, w, h*2, r=outr);
                 translate([wall, wall, wall])
                 round_cube(l-2*wall, w-2*wall, (h-wall)*2, r=inr);
             }
+
             // Top half
             translate([0, 0, h])
             cube([l, w, h]);
         }
-        
-        // Notch holes
-        translate([l/4-notch_w/2, wall-notch_in, h+notch_neck_h])
-        cube([notch_w, w-2*notch_in, notch_head_h]);
-        translate([l*3/4-notch_w/2, wall-notch_in, h+notch_neck_h])
-        cube([notch_w, w-2*notch_in, notch_head_h]);
 
-        translate([l-w*2/3-w/3/2, w/3/2, h*2-0.5])
+        // Notches
+        translate([l/4-notch_w/2, wall-notch_in, h+tab_neck_h])
+        cube([notch_w, w-2*wall+2*notch_in, notch_h]);
+        translate([l*3/4-notch_w/2, wall-notch_in, h+tab_neck_h])
+        cube([notch_w, w-2*wall+2*notch_in, notch_h]);
+
+        // Logo impression
+        translate([l-w*2/3-w/3/2, w/3/2, h*2-(wall-0.7)])
         linear_extrude(height=1+epsilon) resize([w*2/3, w*2/3]) import("maia-logo.dxf");
 
     }
